@@ -308,9 +308,21 @@ export default function App() {
   return (
     <div className="h-screen flex flex-col bg-slate-50 dark:bg-slate-900">
       {/* Titlebar drag region */}
-      <div className="titlebar-drag h-8 bg-white dark:bg-slate-900 border-b border-slate-100 dark:border-slate-800 flex-shrink-0 flex items-center justify-between px-20">
+      <div className="titlebar-drag h-14 bg-white dark:bg-slate-900 border-b border-slate-100 dark:border-slate-800 flex-shrink-0 flex items-center justify-between px-20">
         <div />
-        <span className="text-xs font-semibold text-slate-400 dark:text-slate-600 tracking-wider uppercase select-none">Track</span>
+        <div className="flex items-center gap-4 select-none">
+          <svg width="48" height="16" viewBox="0 0 24 8" className="text-slate-300 dark:text-slate-600">
+            <circle cx="4" cy="4" r="1.5" fill="currentColor" />
+            <circle cx="12" cy="4" r="2.5" fill="currentColor" />
+            <circle cx="21" cy="4" r="3.5" fill="currentColor" />
+          </svg>
+          <span className="text-2xl font-bold text-slate-400 dark:text-slate-500 tracking-[0.3em] uppercase">Track</span>
+          <svg width="48" height="16" viewBox="0 0 24 8" className="text-slate-300 dark:text-slate-600">
+            <circle cx="3" cy="4" r="3.5" fill="currentColor" />
+            <circle cx="12" cy="4" r="2.5" fill="currentColor" />
+            <circle cx="20" cy="4" r="1.5" fill="currentColor" />
+          </svg>
+        </div>
         <div className="titlebar-no-drag">
           <DarkModeToggle />
         </div>
