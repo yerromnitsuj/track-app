@@ -17,6 +17,7 @@ import DayView from './components/DayView';
 import DarkModeToggle from './components/DarkModeToggle';
 import ResizeHandle from './components/ResizeHandle';
 import Onboarding from './components/Onboarding';
+import DataMenu from './components/DataMenu';
 import type { Section, DayEntry } from './types';
 
 const SIDEBAR_MIN = 200;
@@ -323,7 +324,8 @@ export default function App() {
             <circle cx="20" cy="4" r="1.5" fill="currentColor" />
           </svg>
         </div>
-        <div className="titlebar-no-drag">
+        <div className="titlebar-no-drag flex items-center gap-1">
+          <DataMenu />
           <DarkModeToggle />
         </div>
       </div>

@@ -10,6 +10,45 @@ function debouncedPersist(fn: () => void) {
   persistTimer = setTimeout(fn, 150);
 }
 
+// IndexedDB helpers for more durable browser storage
+const IDB_NAME = 'track-db';
+const IDB_STORE = 'app-data';
+const IDB_KEY = 'data';
+
+function openIDB(): Promise<IDBDatabase> {
+  return new Promise((resolve, reject) => {
+    const req = indexedDB.open(IDB_NAME, 1);
+    req.onupgradeneeded = () => {
+      req.result.createObjectStore(IDB_STORE);
+    };
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error);
+  });
+}
+
+async function idbLoad(): Promise<AppData | null> {
+  try {
+    const db = await openIDB();
+    return new Promise((resolve) => {
+      const tx = db.transaction(IDB_STORE, 'readonly');
+      const store = tx.objectStore(IDB_STORE);
+      const req = store.get(IDB_KEY);
+      req.onsuccess = () => resolve(req.result || null);
+      req.onerror = () => resolve(null);
+    });
+  } catch {
+    return null;
+  }
+}
+
+async function idbSave(data: AppData): Promise<void> {
+  try {
+    const db = await openIDB();
+    const tx = db.transaction(IDB_STORE, 'readwrite');
+    tx.objectStore(IDB_STORE).put(data, IDB_KEY);
+  } catch {}
+}
+
 declare global {
   interface Window {
     electronAPI?: {
@@ -74,6 +113,10 @@ interface AppState {
 
   // Populate
   populateFromDay: (sourceDate: string, importIncompleteTodos?: boolean) => void;
+
+  // Export / Import
+  exportData: () => void;
+  importData: (data: AppData) => void;
 
   // Helpers
   getEntriesForDate: (date: string) => DayEntry[];
@@ -148,13 +191,21 @@ const useStore = create<AppState>((set, get) => ({
         set({ isLoaded: true });
       }
     } else {
-      // Fallback: load from localStorage for browser dev
+      // Browser: try IndexedDB first, then localStorage fallback
       try {
-        const raw = localStorage.getItem('track-data');
-        if (raw) {
-          const data = JSON.parse(raw);
+        let data = await idbLoad();
+        if (!data) {
+          // Migrate from localStorage if exists
+          const raw = localStorage.getItem('track-data');
+          if (raw) {
+            data = JSON.parse(raw);
+          }
+        }
+        if (data) {
           const { projects, days } = migrateData(data);
           set({ projects, days, isLoaded: true });
+          // Ensure IndexedDB has the data
+          idbSave({ projects, days });
         } else {
           set({ isLoaded: true });
         }
@@ -171,7 +222,9 @@ const useStore = create<AppState>((set, get) => ({
       if (window.electronAPI) {
         await window.electronAPI.saveData(data);
       } else {
-        localStorage.setItem('track-data', JSON.stringify(data));
+        // Write to both IndexedDB (primary) and localStorage (backup)
+        idbSave(data);
+        try { localStorage.setItem('track-data', JSON.stringify(data)); } catch {}
       }
     });
   },
@@ -544,6 +597,40 @@ const useStore = create<AppState>((set, get) => ({
         },
       },
     }));
+    get().persist();
+  },
+
+  // Export / Import
+  exportData: () => {
+    const { projects, days } = get();
+    const data: AppData = { projects, days };
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `track-backup-${format(new Date(), 'yyyy-MM-dd')}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+  },
+
+  importData: (data: AppData) => {
+    // Reuse the same migration logic
+    const projects = (data.projects || []).map((p: Project) => ({
+      ...p,
+      savedNotes: p.savedNotes || [],
+    }));
+    const rawDays = data.days || {};
+    const days: Record<string, { date: string; entries: DayEntry[] }> = {};
+    for (const [date, dayData] of Object.entries(rawDays)) {
+      days[date] = {
+        ...dayData,
+        entries: (dayData.entries || []).map((e: DayEntry) => ({
+          ...e,
+          dailyTodos: Array.isArray(e.dailyTodos) ? e.dailyTodos : [],
+        })),
+      };
+    }
+    set({ projects, days });
     get().persist();
   },
 
