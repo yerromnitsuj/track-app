@@ -16,6 +16,7 @@ import Sidebar from './components/Sidebar';
 import DayView from './components/DayView';
 import DarkModeToggle from './components/DarkModeToggle';
 import ResizeHandle from './components/ResizeHandle';
+import Onboarding from './components/Onboarding';
 import type { Section, DayEntry } from './types';
 
 const SIDEBAR_MIN = 200;
@@ -338,6 +339,8 @@ export default function App() {
           {overlayContent}
         </DragOverlay>
       </DndContext>
+
+      <Onboarding />
     </div>
   );
 }
