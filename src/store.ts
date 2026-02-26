@@ -49,16 +49,6 @@ async function idbSave(data: AppData): Promise<void> {
   } catch {}
 }
 
-declare global {
-  interface Window {
-    electronAPI?: {
-      loadData: () => Promise<AppData>;
-      saveData: (data: AppData) => Promise<boolean>;
-      getDataPath: () => Promise<string>;
-    };
-  }
-}
-
 interface NotesTarget {
   entryId: string;
   projectId: string;
@@ -181,37 +171,26 @@ const useStore = create<AppState>((set, get) => ({
       return { projects, days };
     };
 
-    if (window.electronAPI) {
-      try {
-        const data = await window.electronAPI.loadData();
+    // Try IndexedDB first, then localStorage fallback
+    try {
+      let data = await idbLoad();
+      if (!data) {
+        // Migrate from localStorage if exists
+        const raw = localStorage.getItem('track-data');
+        if (raw) {
+          data = JSON.parse(raw);
+        }
+      }
+      if (data) {
         const { projects, days } = migrateData(data);
         set({ projects, days, isLoaded: true });
-      } catch (err) {
-        console.error('Failed to load data:', err);
+        // Ensure IndexedDB has the data
+        idbSave({ projects, days });
+      } else {
         set({ isLoaded: true });
       }
-    } else {
-      // Browser: try IndexedDB first, then localStorage fallback
-      try {
-        let data = await idbLoad();
-        if (!data) {
-          // Migrate from localStorage if exists
-          const raw = localStorage.getItem('track-data');
-          if (raw) {
-            data = JSON.parse(raw);
-          }
-        }
-        if (data) {
-          const { projects, days } = migrateData(data);
-          set({ projects, days, isLoaded: true });
-          // Ensure IndexedDB has the data
-          idbSave({ projects, days });
-        } else {
-          set({ isLoaded: true });
-        }
-      } catch {
-        set({ isLoaded: true });
-      }
+    } catch {
+      set({ isLoaded: true });
     }
   },
 
@@ -219,13 +198,9 @@ const useStore = create<AppState>((set, get) => ({
     debouncedPersist(async () => {
       const { projects, days } = get();
       const data: AppData = { projects, days };
-      if (window.electronAPI) {
-        await window.electronAPI.saveData(data);
-      } else {
-        // Write to both IndexedDB (primary) and localStorage (backup)
-        idbSave(data);
-        try { localStorage.setItem('track-data', JSON.stringify(data)); } catch {}
-      }
+      // Write to both IndexedDB (primary) and localStorage (backup)
+      idbSave(data);
+      try { localStorage.setItem('track-data', JSON.stringify(data)); } catch {}
     });
   },
 
