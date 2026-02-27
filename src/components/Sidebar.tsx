@@ -3,6 +3,7 @@ import { useDraggable } from '@dnd-kit/core';
 import { format } from 'date-fns';
 import useStore from '../store';
 import type { Project } from '../types';
+import { MONTH_OPTIONS, monthName } from '../utils/monthUtils';
 
 export default function Sidebar({ width }: { width: number }) {
   const projects = useStore((s) =>
@@ -15,6 +16,8 @@ export default function Sidebar({ width }: { width: number }) {
 
   const [isAdding, setIsAdding] = useState(false);
   const [newName, setNewName] = useState('');
+  const [newStartMonth, setNewStartMonth] = useState<number | undefined>(undefined);
+  const [newEndMonth, setNewEndMonth] = useState<number | undefined>(undefined);
   const addInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -26,10 +29,19 @@ export default function Sidebar({ width }: { width: number }) {
   const handleAddProject = () => {
     const trimmed = newName.trim();
     if (trimmed) {
-      addProject(trimmed);
+      addProject(trimmed, newStartMonth, newEndMonth);
       setNewName('');
+      setNewStartMonth(undefined);
+      setNewEndMonth(undefined);
       setIsAdding(false);
     }
+  };
+
+  const cancelAdd = () => {
+    setIsAdding(false);
+    setNewName('');
+    setNewStartMonth(undefined);
+    setNewEndMonth(undefined);
   };
 
   return (
@@ -84,9 +96,9 @@ export default function Sidebar({ width }: { width: number }) {
           />
         ))}
 
-        {/* Add project input */}
+        {/* Add project form */}
         {isAdding && (
-          <div className="px-3 py-1">
+          <div className="px-3 py-1 space-y-1.5">
             <input
               ref={addInputRef}
               type="text"
@@ -94,22 +106,39 @@ export default function Sidebar({ width }: { width: number }) {
               onChange={(e) => setNewName(e.target.value)}
               onKeyDown={(e) => {
                 if (e.key === 'Enter') handleAddProject();
-                if (e.key === 'Escape') {
-                  setIsAdding(false);
-                  setNewName('');
-                }
-              }}
-              onBlur={() => {
-                if (newName.trim()) {
-                  handleAddProject();
-                } else {
-                  setIsAdding(false);
-                  setNewName('');
-                }
+                if (e.key === 'Escape') cancelAdd();
               }}
               placeholder="Project name..."
               className="w-full px-3 py-2 text-sm border border-primary-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-200 focus:border-primary-400 dark:bg-slate-800 dark:border-primary-700 dark:text-slate-200 dark:focus:ring-primary-800 dark:focus:border-primary-600 dark:placeholder:text-slate-500"
             />
+            <div className="flex items-center gap-1.5">
+              <MonthSelect
+                value={newStartMonth}
+                onChange={setNewStartMonth}
+                placeholder="Start"
+              />
+              <span className="text-xs text-slate-400 dark:text-slate-500">–</span>
+              <MonthSelect
+                value={newEndMonth}
+                onChange={setNewEndMonth}
+                placeholder="End"
+              />
+            </div>
+            <div className="flex items-center gap-1.5">
+              <button
+                onClick={handleAddProject}
+                disabled={!newName.trim()}
+                className="px-2.5 py-1 text-xs font-medium rounded-md bg-primary-500 text-white hover:bg-primary-600 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+              >
+                Add
+              </button>
+              <button
+                onClick={cancelAdd}
+                className="px-2.5 py-1 text-xs font-medium rounded-md text-slate-500 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-700 transition-colors"
+              >
+                Cancel
+              </button>
+            </div>
           </div>
         )}
       </div>
@@ -292,6 +321,7 @@ function SidebarNotesExpanded({
 }) {
   const saveProjectNote = useStore((s) => s.saveProjectNote);
   const loadProjectNote = useStore((s) => s.loadProjectNote);
+  const updateProjectMonths = useStore((s) => s.updateProjectMonths);
 
   const [showSaveInput, setShowSaveInput] = useState(false);
   const [saveName, setSaveName] = useState('');
@@ -378,6 +408,57 @@ function SidebarNotesExpanded({
           </div>
         )}
       </div>
+
+      {/* Months */}
+      <div className="mt-2 pt-2 border-t border-slate-100 dark:border-slate-700">
+        <p className="text-[11px] font-medium text-slate-500 dark:text-slate-400 mb-1">Months</p>
+        <div className="flex items-center gap-1.5">
+          <MonthSelect
+            value={project.startMonth}
+            onChange={(m) => updateProjectMonths(project.id, m, project.endMonth)}
+            placeholder="Start"
+          />
+          <span className="text-xs text-slate-400 dark:text-slate-500">–</span>
+          <MonthSelect
+            value={project.endMonth}
+            onChange={(m) => updateProjectMonths(project.id, project.startMonth, m)}
+            placeholder="End"
+          />
+        </div>
+        {project.startMonth && project.endMonth && (
+          <p className="mt-1 text-[10px] text-teal-600 dark:text-teal-400">
+            Active {monthName(project.startMonth)} – {monthName(project.endMonth)}
+          </p>
+        )}
+      </div>
     </div>
+  );
+}
+
+function MonthSelect({
+  value,
+  onChange,
+  placeholder,
+}: {
+  value: number | undefined;
+  onChange: (month: number | undefined) => void;
+  placeholder: string;
+}) {
+  return (
+    <select
+      value={value ?? ''}
+      onChange={(e) => {
+        const v = e.target.value;
+        onChange(v ? Number(v) : undefined);
+      }}
+      className="flex-1 min-w-0 px-1.5 py-1 text-xs border border-slate-200 rounded bg-white text-slate-700 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-300 focus:outline-none focus:ring-1 focus:ring-teal-200 focus:border-teal-400 dark:focus:ring-teal-700 dark:focus:border-teal-600"
+    >
+      <option value="">{placeholder}</option>
+      {MONTH_OPTIONS.map((m) => (
+        <option key={m.value} value={m.value}>
+          {m.label}
+        </option>
+      ))}
+    </select>
   );
 }

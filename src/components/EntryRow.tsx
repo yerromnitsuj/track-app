@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import useStore from '../store';
@@ -30,12 +30,55 @@ export default function EntryRow({
   const updateEntryDone = useStore((s) => s.updateEntryDone);
 
   const [timeValue, setTimeValue] = useState(timeSpent === 0 ? '' : String(timeSpent));
+  const [isRunning, setIsRunning] = useState(false);
   const timeInputRef = useRef<HTMLInputElement>(null);
+  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const startTimeRef = useRef<number>(0); // wall-clock ms when timer started
+  const baseTimeRef = useRef<number>(0);  // hours already accumulated at start
 
-  // Sync external time changes
+  // Sync external time changes (only when timer is NOT running)
   useEffect(() => {
-    setTimeValue(timeSpent === 0 ? '' : String(timeSpent));
-  }, [timeSpent]);
+    if (!isRunning) {
+      setTimeValue(timeSpent === 0 ? '' : String(timeSpent));
+    }
+  }, [timeSpent, isRunning]);
+
+  // Cleanup interval on unmount
+  useEffect(() => {
+    return () => {
+      if (intervalRef.current) clearInterval(intervalRef.current);
+    };
+  }, []);
+
+  const stopTimer = useCallback(() => {
+    if (intervalRef.current) {
+      clearInterval(intervalRef.current);
+      intervalRef.current = null;
+    }
+    // Final precise save
+    const elapsed = (Date.now() - startTimeRef.current) / 3_600_000;
+    const total = Math.round((baseTimeRef.current + elapsed) * 100) / 100;
+    const capped = Math.min(total, 24);
+    setTimeValue(capped === 0 ? '' : String(capped));
+    updateEntryTime(date, entryId, capped);
+    setIsRunning(false);
+  }, [date, entryId, updateEntryTime]);
+
+  const startTimer = useCallback(() => {
+    const current = parseFloat(timeValue) || 0;
+    baseTimeRef.current = current;
+    startTimeRef.current = Date.now();
+    setIsRunning(true);
+
+    intervalRef.current = setInterval(() => {
+      const elapsed = (Date.now() - startTimeRef.current) / 3_600_000;
+      const total = Math.round((baseTimeRef.current + elapsed) * 100) / 100;
+      const capped = Math.min(total, 24);
+      setTimeValue(capped === 0 ? '' : String(capped));
+      // Persist every tick so store stays in sync
+      updateEntryTime(date, entryId, capped);
+    }, 1000);
+  }, [timeValue, date, entryId, updateEntryTime]);
 
   const {
     attributes,
@@ -56,6 +99,11 @@ export default function EntryRow({
     if (val === '' || /^\d*\.?\d*$/.test(val)) {
       setTimeValue(val);
     }
+  };
+
+  const handleTimeFocus = () => {
+    // Stop the timer when user clicks into the input to edit manually
+    if (isRunning) stopTimer();
   };
 
   const handleTimeBlur = () => {
@@ -131,27 +179,41 @@ export default function EntryRow({
         {projectName}
       </button>
 
-      {/* Time input */}
-      <div className="flex-shrink-0 w-20">
-        <input
-          ref={timeInputRef}
-          type="text"
-          value={timeValue}
-          onChange={(e) => handleTimeChange(e.target.value)}
-          onBlur={handleTimeBlur}
-          onKeyDown={handleTimeKeyDown}
-          placeholder="0"
-          className={`w-full px-2 py-1 text-sm text-right border rounded-md transition-colors focus:outline-none focus:ring-1 focus:ring-teal-200 focus:border-teal-400 dark:focus:ring-teal-700 dark:focus:border-teal-600 ${
-            done
-              ? 'bg-slate-50 border-slate-200 text-slate-400 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-500'
-              : 'bg-white border-slate-200 text-slate-700 hover:border-slate-300 dark:bg-slate-800 dark:border-slate-600 dark:text-slate-300 dark:hover:border-slate-500'
+      {/* Time input + timer */}
+      <div className="flex-shrink-0 flex items-center gap-1.5">
+        <div className="w-20">
+          <input
+            ref={timeInputRef}
+            type="text"
+            value={timeValue}
+            onChange={(e) => handleTimeChange(e.target.value)}
+            onFocus={handleTimeFocus}
+            onBlur={handleTimeBlur}
+            onKeyDown={handleTimeKeyDown}
+            placeholder="0"
+            className={`w-full px-2 py-1 text-sm text-right border rounded-md transition-colors focus:outline-none focus:ring-1 focus:ring-teal-200 focus:border-teal-400 dark:focus:ring-teal-700 dark:focus:border-teal-600 ${
+              isRunning
+                ? 'bg-teal-50 border-teal-300 text-teal-700 dark:bg-teal-900/30 dark:border-teal-600 dark:text-teal-300'
+                : done
+                  ? 'bg-slate-50 border-slate-200 text-slate-400 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-500'
+                  : 'bg-white border-slate-200 text-slate-700 hover:border-slate-300 dark:bg-slate-800 dark:border-slate-600 dark:text-slate-300 dark:hover:border-slate-500'
+            }`}
+            title="Hours (use arrows to adjust by 0.25, Shift+arrows for 1.0)"
+          />
+        </div>
+        <span className="text-xs text-slate-400 dark:text-slate-500 w-5">hr</span>
+        <button
+          onClick={() => (isRunning ? stopTimer() : startTimer())}
+          className={`flex-shrink-0 px-2 py-1 text-xs font-medium rounded-md transition-colors ${
+            isRunning
+              ? 'bg-red-100 text-red-600 hover:bg-red-200 dark:bg-red-900/30 dark:text-red-400 dark:hover:bg-red-900/50'
+              : 'bg-teal-100 text-teal-600 hover:bg-teal-200 dark:bg-teal-900/30 dark:text-teal-400 dark:hover:bg-teal-900/50'
           }`}
-          title="Hours (use arrows to adjust by 0.25, Shift+arrows for 1.0)"
-        />
+          title={isRunning ? 'Stop timer' : 'Start timer'}
+        >
+          {isRunning ? 'Stop' : 'Start'}
+        </button>
       </div>
-
-      {/* Hours label */}
-      <span className="flex-shrink-0 text-xs text-slate-400 dark:text-slate-500 w-5">hr</span>
 
       {/* Done checkbox */}
       <button

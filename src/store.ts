@@ -75,9 +75,10 @@ interface AppState {
   toggleDarkMode: () => void;
 
   // Project actions
-  addProject: (name: string) => void;
+  addProject: (name: string, startMonth?: number, endMonth?: number) => void;
   renameProject: (id: string, name: string) => void;
   deleteProject: (id: string) => void;
+  updateProjectMonths: (id: string, startMonth?: number, endMonth?: number) => void;
   updateProjectGlobalNotes: (id: string, notes: string) => void;
   saveProjectNote: (projectId: string, name: string) => void;
   loadProjectNote: (projectId: string, noteId: string) => void;
@@ -205,7 +206,7 @@ const useStore = create<AppState>((set, get) => ({
   },
 
   // Project actions
-  addProject: (name: string) => {
+  addProject: (name: string, startMonth?: number, endMonth?: number) => {
     const project: Project = {
       id: uuidv4(),
       name,
@@ -213,6 +214,8 @@ const useStore = create<AppState>((set, get) => ({
       savedNotes: [],
       createdAt: new Date().toISOString(),
       archived: false,
+      startMonth,
+      endMonth,
     };
     set((state) => ({ projects: [...state.projects, project] }));
     get().persist();
@@ -231,6 +234,15 @@ const useStore = create<AppState>((set, get) => ({
     set((state) => ({
       projects: state.projects.map((p) =>
         p.id === id ? { ...p, archived: true } : p
+      ),
+    }));
+    get().persist();
+  },
+
+  updateProjectMonths: (id: string, startMonth?: number, endMonth?: number) => {
+    set((state) => ({
+      projects: state.projects.map((p) =>
+        p.id === id ? { ...p, startMonth, endMonth } : p
       ),
     }));
     get().persist();

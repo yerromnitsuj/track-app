@@ -12,6 +12,8 @@ export interface Project {
   savedNotes: SavedNote[];
   createdAt: string;
   archived: boolean;
+  startMonth?: number; // 1-12
+  endMonth?: number;   // 1-12
 }
 
 export interface TodoItem {
