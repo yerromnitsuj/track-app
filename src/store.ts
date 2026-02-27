@@ -78,6 +78,7 @@ interface AppState {
   addProject: (name: string, startMonth?: number, endMonth?: number) => void;
   renameProject: (id: string, name: string) => void;
   deleteProject: (id: string) => void;
+  unarchiveProject: (id: string) => void;
   updateProjectMonths: (id: string, startMonth?: number, endMonth?: number) => void;
   updateProjectGlobalNotes: (id: string, notes: string) => void;
   saveProjectNote: (projectId: string, name: string) => void;
@@ -234,6 +235,15 @@ const useStore = create<AppState>((set, get) => ({
     set((state) => ({
       projects: state.projects.map((p) =>
         p.id === id ? { ...p, archived: true } : p
+      ),
+    }));
+    get().persist();
+  },
+
+  unarchiveProject: (id: string) => {
+    set((state) => ({
+      projects: state.projects.map((p) =>
+        p.id === id ? { ...p, archived: false } : p
       ),
     }));
     get().persist();

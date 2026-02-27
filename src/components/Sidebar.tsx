@@ -9,10 +9,16 @@ export default function Sidebar({ width }: { width: number }) {
   const projects = useStore((s) =>
     s.projects.filter((p) => !p.archived).sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }))
   );
+  const archivedProjects = useStore((s) =>
+    s.projects.filter((p) => p.archived).sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }))
+  );
   const addProject = useStore((s) => s.addProject);
   const renameProject = useStore((s) => s.renameProject);
   const deleteProject = useStore((s) => s.deleteProject);
+  const unarchiveProject = useStore((s) => s.unarchiveProject);
   const updateProjectGlobalNotes = useStore((s) => s.updateProjectGlobalNotes);
+
+  const [showArchived, setShowArchived] = useState(false);
 
   const [isAdding, setIsAdding] = useState(false);
   const [newName, setNewName] = useState('');
@@ -91,7 +97,7 @@ export default function Sidebar({ width }: { width: number }) {
             key={project.id}
             project={project}
             onRename={renameProject}
-            onDelete={deleteProject}
+            onArchive={deleteProject}
             onUpdateNotes={updateProjectGlobalNotes}
           />
         ))}
@@ -141,6 +147,45 @@ export default function Sidebar({ width }: { width: number }) {
             </div>
           </div>
         )}
+
+        {/* Archived projects */}
+        {archivedProjects.length > 0 && (
+          <div className="mt-2 border-t border-slate-100 dark:border-slate-700">
+            <button
+              onClick={() => setShowArchived(!showArchived)}
+              className="w-full flex items-center gap-1.5 px-5 py-2 text-xs text-slate-400 hover:text-slate-600 dark:text-slate-500 dark:hover:text-slate-300 transition-colors"
+            >
+              <svg
+                width="8"
+                height="8"
+                viewBox="0 0 8 8"
+                fill="currentColor"
+                className={`transform transition-transform ${showArchived ? 'rotate-90' : ''}`}
+              >
+                <path d="M2 0 L7 4 L2 8 Z" />
+              </svg>
+              Archived ({archivedProjects.length})
+            </button>
+            {showArchived && (
+              <div className="pb-2">
+                {archivedProjects.map((project) => (
+                  <div key={project.id} className="group mx-2 flex items-center gap-1 px-3 py-1.5 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors">
+                    <span className="flex-1 min-w-0 text-sm text-slate-400 dark:text-slate-500 truncate">
+                      {project.name}
+                    </span>
+                    <button
+                      onClick={() => unarchiveProject(project.id)}
+                      className="flex-shrink-0 px-2 py-0.5 text-[11px] font-medium rounded text-teal-600 hover:bg-teal-50 dark:text-teal-400 dark:hover:bg-teal-900/20 opacity-0 group-hover:opacity-100 transition-all"
+                      title="Restore project"
+                    >
+                      Restore
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
       </div>
     </div>
   );
@@ -149,18 +194,18 @@ export default function Sidebar({ width }: { width: number }) {
 function ProjectItem({
   project,
   onRename,
-  onDelete,
+  onArchive,
   onUpdateNotes,
 }: {
   project: Project;
   onRename: (id: string, name: string) => void;
-  onDelete: (id: string) => void;
+  onArchive: (id: string) => void;
   onUpdateNotes: (id: string, notes: string) => void;
 }) {
   const [isExpanded, setIsExpanded] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [editName, setEditName] = useState(project.name);
-  const [showConfirmDelete, setShowConfirmDelete] = useState(false);
+  const [showConfirmArchive, setShowConfirmArchive] = useState(false);
   const editInputRef = useRef<HTMLInputElement>(null);
 
   // Make the project item draggable
@@ -263,22 +308,22 @@ function ProjectItem({
                 <path d="M8.5 1.5 L10.5 3.5 L4 10 L1.5 10.5 L2 8 Z" />
               </svg>
             </button>
-            {showConfirmDelete ? (
+            {showConfirmArchive ? (
               <div className="flex items-center gap-0.5">
                 <button
                   onClick={(e) => {
                     e.stopPropagation();
-                    onDelete(project.id);
-                    setShowConfirmDelete(false);
+                    onArchive(project.id);
+                    setShowConfirmArchive(false);
                   }}
-                  className="px-1.5 py-0.5 text-xs rounded bg-red-100 text-red-600 hover:bg-red-200 dark:bg-red-900/30 dark:text-red-400 dark:hover:bg-red-900/50"
+                  className="px-1.5 py-0.5 text-xs rounded bg-amber-100 text-amber-700 hover:bg-amber-200 dark:bg-amber-900/30 dark:text-amber-400 dark:hover:bg-amber-900/50"
                 >
                   Yes
                 </button>
                 <button
                   onClick={(e) => {
                     e.stopPropagation();
-                    setShowConfirmDelete(false);
+                    setShowConfirmArchive(false);
                   }}
                   className="px-1.5 py-0.5 text-xs rounded bg-slate-100 text-slate-600 hover:bg-slate-200 dark:bg-slate-700 dark:text-slate-400 dark:hover:bg-slate-600"
                 >
@@ -289,14 +334,15 @@ function ProjectItem({
               <button
                 onClick={(e) => {
                   e.stopPropagation();
-                  setShowConfirmDelete(true);
+                  setShowConfirmArchive(true);
                 }}
-                className="w-6 h-6 flex items-center justify-center rounded text-slate-400 hover:text-red-500 hover:bg-red-50 dark:text-slate-500 dark:hover:text-red-400 dark:hover:bg-red-900/20"
-                title="Delete"
+                className="w-6 h-6 flex items-center justify-center rounded text-slate-400 hover:text-amber-600 hover:bg-amber-50 dark:text-slate-500 dark:hover:text-amber-400 dark:hover:bg-amber-900/20"
+                title="Archive"
               >
-                <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">
-                  <line x1="2" y1="2" x2="10" y2="10" />
-                  <line x1="10" y1="2" x2="2" y2="10" />
+                <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                  <rect x="1" y="1" width="10" height="3" rx="0.5" />
+                  <path d="M2 4 L2 10.5 C2 10.8 2.2 11 2.5 11 L9.5 11 C9.8 11 10 10.8 10 10.5 L10 4" />
+                  <line x1="5" y1="6.5" x2="7" y2="6.5" />
                 </svg>
               </button>
             )}
