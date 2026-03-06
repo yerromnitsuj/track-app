@@ -20,8 +20,12 @@ async function tryFetch(path: string, options?: RequestInit): Promise<Response |
       headers: { 'Content-Type': 'application/json', ...options?.headers },
     });
     clearTimeout(timeout);
+    if (!res.ok) {
+      console.warn(`[sync] ${options?.method || 'GET'} ${path} failed: ${res.status}`);
+    }
     return res.ok ? res : null;
-  } catch {
+  } catch (e) {
+    console.warn(`[sync] ${options?.method || 'GET'} ${path} error:`, e);
     return null;
   }
 }

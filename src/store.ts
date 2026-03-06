@@ -174,22 +174,42 @@ const useStore = create<AppState>((set, get) => ({
       return { projects, days };
     };
 
-    // Try sync server first, then IndexedDB, then localStorage
+    // Load from all sources and pick the richest one
     try {
-      let data = await syncLoad();
-      if (!data) {
-        data = await idbLoad();
-        if (!data) {
-          const raw = localStorage.getItem('track-data');
-          if (raw) {
-            data = JSON.parse(raw);
-          }
-        }
-      }
-      if (data) {
-        const { projects, days } = migrateData(data);
+      const syncData = await syncLoad();
+      const idbData = await idbLoad();
+      let lsData: AppData | null = null;
+      try {
+        const raw = localStorage.getItem('track-data');
+        if (raw) lsData = JSON.parse(raw);
+      } catch {}
+
+      // Score each source by amount of content
+      const score = (d: AppData | null) => {
+        if (!d) return 0;
+        const projects = (d.projects || []).filter((p) => !p.archived).length;
+        const days = Object.keys(d.days || {}).length;
+        return projects + days;
+      };
+
+      // Pick the source with the most data
+      const candidates: { data: AppData; source: string }[] = [];
+      if (syncData) candidates.push({ data: syncData, source: 'sync' });
+      if (idbData) candidates.push({ data: idbData, source: 'idb' });
+      if (lsData) candidates.push({ data: lsData, source: 'ls' });
+
+      candidates.sort((a, b) => score(b.data) - score(a.data));
+      const best = candidates[0] || null;
+
+      if (best) {
+        const { projects, days } = migrateData(best.data);
         set({ projects, days, isLoaded: true });
         idbSave({ projects, days });
+        try { localStorage.setItem('track-data', JSON.stringify({ projects, days })); } catch {}
+        // Push to sync server if local data was richer
+        if (best.source !== 'sync') {
+          syncSave({ projects, days });
+        }
       } else {
         set({ isLoaded: true });
       }
