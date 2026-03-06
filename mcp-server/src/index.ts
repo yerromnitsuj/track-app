@@ -367,7 +367,7 @@ server.tool(
 
 server.tool(
   'import_state',
-  'Replace the entire Track app state. Use with extreme caution — this overwrites all data.',
+  'Replace the entire Track app state. A backup is automatically created before overwriting. Returns a summary of what was replaced so you can verify the operation.',
   {
     data: z.object({
       projects: z.array(z.any()),
@@ -375,11 +375,62 @@ server.tool(
     }).describe('Complete AppData object'),
   },
   async ({ data }) => {
+    // Snapshot current state before overwriting
+    const before = await api.getState();
+    const beforeProjects = before.data.projects?.length ?? 0;
+    const beforeDays = Object.keys(before.data.days ?? {}).length;
+
     const result = await api.putState(data);
+
+    const afterProjects = data.projects?.length ?? 0;
+    const afterDays = Object.keys(data.days ?? {}).length;
+
     return {
       content: [{
         type: 'text' as const,
-        text: `State imported. New version: ${result.version}`,
+        text: [
+          `State imported (version ${result.version}). A backup was created automatically.`,
+          ``,
+          `Before: ${beforeProjects} projects, ${beforeDays} days with entries`,
+          `After: ${afterProjects} projects, ${afterDays} days with entries`,
+          ``,
+          `If this was a mistake, use list_backups and restore_backup to undo.`,
+        ].join('\n'),
+      }],
+    };
+  }
+);
+
+server.tool(
+  'list_backups',
+  'List available backups of Track data, newest first. Backups are created automatically before any full state replacement.',
+  {},
+  async () => {
+    const backups = await api.listBackups();
+    if (backups.length === 0) {
+      return { content: [{ type: 'text' as const, text: 'No backups available.' }] };
+    }
+    return {
+      content: [{
+        type: 'text' as const,
+        text: `${backups.length} backups available (newest first):\n${backups.map((b: string, i: number) => `  ${i + 1}. ${b}`).join('\n')}`,
+      }],
+    };
+  }
+);
+
+server.tool(
+  'restore_backup',
+  'Restore Track data from a previous backup. Use list_backups to see available backups.',
+  {
+    filename: z.string().describe('Backup filename from list_backups'),
+  },
+  async ({ filename }) => {
+    const result = await api.restoreBackup(filename);
+    return {
+      content: [{
+        type: 'text' as const,
+        text: result.message + ` (version ${result.version})`,
       }],
     };
   }

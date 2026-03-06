@@ -96,4 +96,12 @@ export const api = {
   // Summary
   getSummary: (start: string, end: string) =>
     request(`/api/summary?start=${start}&end=${end}`),
+
+  // Backups
+  listBackups: () => request('/api/backups'),
+  restoreBackup: (filename: string) =>
+    request('/api/backups/restore', {
+      method: 'POST',
+      body: JSON.stringify({ filename }),
+    }),
 };

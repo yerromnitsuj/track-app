@@ -2,7 +2,7 @@ import { Hono } from 'hono';
 import { cors } from 'hono/cors';
 import { serve } from '@hono/node-server';
 import { v4 as uuidv4 } from 'uuid';
-import { load, save, update } from './store.js';
+import { load, save, update, listBackups, restoreBackup } from './store.js';
 import type { AppData, DayEntry, Project, TodoItem, DayData } from './store.js';
 
 const app = new Hono();
@@ -565,6 +565,31 @@ app.get('/api/summary', (c) => {
     projects: Object.values(summary),
     grandTotal: Object.values(summary).reduce((sum, p) => sum + p.totalHours, 0),
   });
+});
+
+// --- Backup endpoints ---
+
+app.get('/api/backups', (c) => {
+  return c.json(listBackups());
+});
+
+app.post('/api/backups/restore', async (c) => {
+  const body = await c.req.json<{ filename: string }>();
+  if (!body.filename || typeof body.filename !== 'string') {
+    return c.json({ error: 'filename is required' }, 400);
+  }
+  try {
+    const stored = restoreBackup(body.filename);
+    return c.json({ version: stored.version, message: `Restored from ${body.filename}` });
+  } catch (e: any) {
+    if (e.message === 'BACKUP_NOT_FOUND') {
+      return c.json({ error: 'Backup not found' }, 404);
+    }
+    if (e.message === 'INVALID_FILENAME') {
+      return c.json({ error: 'Invalid filename' }, 400);
+    }
+    throw e;
+  }
 });
 
 // --- Health check ---
