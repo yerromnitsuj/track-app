@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "track": {
+      "command": "node",
+      "args": ["dist/index.js"],
+      "cwd": "/Users/justinmorrey/Work Things/Track/mcp-server",
+      "env": {
+        "TRACK_SYNC_URL": "http://localhost:3002"
+      }
+    }
+  }
+}

@@ -6,7 +6,9 @@
   "scripts": {
     "dev": "vite --port 5173",
     "build": "tsc && vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "sync-server": "cd server && npm start",
+    "mcp:build": "cd mcp-server && npm run build"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.1.0",

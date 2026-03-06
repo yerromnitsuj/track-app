@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import { v4 as uuidv4 } from 'uuid';
 import { format } from 'date-fns';
 import type { Project, DayEntry, AppData, Section, TodoItem, SavedNote } from './types';
+import { syncLoad, syncSave, startPolling } from './sync';
 
 // Debounce utility for persistence
 let persistTimer: ReturnType<typeof setTimeout> | null = null;
@@ -173,20 +174,21 @@ const useStore = create<AppState>((set, get) => ({
       return { projects, days };
     };
 
-    // Try IndexedDB first, then localStorage fallback
+    // Try sync server first, then IndexedDB, then localStorage
     try {
-      let data = await idbLoad();
+      let data = await syncLoad();
       if (!data) {
-        // Migrate from localStorage if exists
-        const raw = localStorage.getItem('track-data');
-        if (raw) {
-          data = JSON.parse(raw);
+        data = await idbLoad();
+        if (!data) {
+          const raw = localStorage.getItem('track-data');
+          if (raw) {
+            data = JSON.parse(raw);
+          }
         }
       }
       if (data) {
         const { projects, days } = migrateData(data);
         set({ projects, days, isLoaded: true });
-        // Ensure IndexedDB has the data
         idbSave({ projects, days });
       } else {
         set({ isLoaded: true });
@@ -194,15 +196,24 @@ const useStore = create<AppState>((set, get) => ({
     } catch {
       set({ isLoaded: true });
     }
+
+    // Poll for external changes (e.g., from MCP agents)
+    startPolling((externalData) => {
+      const { projects, days } = migrateData(externalData);
+      set({ projects, days });
+      idbSave({ projects, days });
+      try { localStorage.setItem('track-data', JSON.stringify({ projects, days })); } catch {}
+    });
   },
 
   persist: async () => {
     debouncedPersist(async () => {
       const { projects, days } = get();
       const data: AppData = { projects, days };
-      // Write to both IndexedDB (primary) and localStorage (backup)
+      // Write to IndexedDB (primary), localStorage (backup), and sync server
       idbSave(data);
       try { localStorage.setItem('track-data', JSON.stringify(data)); } catch {}
+      syncSave(data);
     });
   },
 

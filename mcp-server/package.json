@@ -1,0 +1,21 @@
+{
+  "name": "track-mcp-server",
+  "version": "1.0.0",
+  "description": "MCP server for Track app - enables Claude agents to manage time tracking",
+  "type": "module",
+  "bin": {
+    "track-mcp": "./dist/index.js"
+  },
+  "scripts": {
+    "dev": "tsx src/index.ts",
+    "build": "tsc",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.12.1"
+  },
+  "devDependencies": {
+    "tsx": "^4.7.0",
+    "typescript": "^5.3.3"
+  }
+}
